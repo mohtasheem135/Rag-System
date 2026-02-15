@@ -291,7 +291,7 @@ Then open:
 
 ---
 
-### 🧪 How to Use
+## 🧪 How to Use
 
 #### A. Upload documents
 1. Go to /upload.
@@ -345,22 +345,22 @@ Then open:
 
 ---
 
-### 🔧 Configuration & Customization
+## 🔧 Configuration & Customization
 
-- Chunk size & overlap
-  - Adjust in the text splitter configuration (e.g. lib/splitters/text-splitter.ts) to trade off between recall, latency, and token usage.
-- Embeddings model
-  - Swap out Gemini embeddings or tune batch size / rate limiting in lib/vectorstore/embeddings.ts.
-- LLM model & temperature
-  - Modify the Gemini model, temperature, and other generation parameters in lib/llm/gemini.ts.
-- Prompting
-  - Tweak system and user prompts in lib/chains/prompts.ts to modify answer style, strictness about context, etc.
-- Collections & multi-tenancy
-  - Use different Chroma collections per user, per dataset, or per environment by threading collectionName through the APIs.
+- **Chunk size & overlap**  
+  Adjust in the text splitter configuration (e.g. lib/splitters/text-splitter.ts) to trade off between recall, latency, and token usage.
+- **Embeddings model**  
+  Swap out Gemini embeddings or tune batch size / rate limiting in lib/vectorstore/embeddings.ts.
+- **LLM model & temperature**   
+  Modify the Gemini model, temperature, and other generation parameters in lib/llm/gemini.ts.
+- **Prompting**   
+  Tweak system and user prompts in lib/chains/prompts.ts to modify answer style, strictness about context, etc.
+- **Collections & multi-tenancy**   
+  Use different Chroma collections per user, per dataset, or per environment by threading collectionName through the APIs.
 
 ---
 
-### 🧭 Roadmap Ideas
+## 🧭 Roadmap Ideas
 Potential extensions you can build on top of this:
 - Streaming responses in the chat UI using a streaming endpoint for Gemini.
 - User authentication and per-user collections / ACLs.
