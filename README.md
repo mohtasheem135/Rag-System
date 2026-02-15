@@ -92,26 +92,26 @@ flowchart LR
 ## 📄 Document Processing Flow
 From upload to vector store:
 
-``` mermaid
+```mermaid
 flowchart TD
-  U[User] -->|Upload File| UploadPage[Upload UI<br/>/upload]
-  UploadPage -->|FormData POST| IngestAPI[/api/ingest]
+  U[User] -->|Upload File| UploadPage["Upload UI<br/>/upload"]
+  UploadPage -->|FormData POST| IngestAPI["/api/ingest"]
 
-  IngestAPI --> Validate[Validate File<br/>(type, size)]
-  Validate --> Save[Save to Disk<br/>public/uploads]
+  IngestAPI --> Validate["Validate File<br/>(type, size)"]
+  Validate --> Save["Save to Disk<br/>public/uploads"]
 
   Save --> DocProc[DocumentProcessor]
-  DocProc --> Loader[Select Loader<br/>PDF / DOCX / TXT]
+  DocProc --> Loader["Select Loader<br/>PDF / DOCX / TXT"]
   Loader --> RawDocs[Raw Documents]
 
-  RawDocs --> Split[RecursiveCharacterTextSplitter<br/>chunkSize & overlap]
-  Split --> Meta[Attach Metadata<br/>(page, source, ids)]
-  Meta --> Embed[Gemini Embeddings<br/>embedding-001]
-  Embed --> Store[Add to Chroma Collection]
+  RawDocs --> Split["RecursiveCharacterTextSplitter<br/>chunkSize & overlap"]
+  Split --> Meta["Attach Metadata<br/>(page, source, ids)"]
+  Meta --> Embed["Gemini Embeddings<br/>embedding-001"]
+  Embed --> Store["Add to Chroma Collection"]
   Store --> Chroma[(ChromaDB)]
 
-  DocProc --> Stats[Processing Stats<br/>(chunks, time, etc.)]
-  IngestAPI --> Response[Upload Response<br/>(documentId, stats)]
+  DocProc --> Stats["Processing Stats<br/>(chunks, time, etc.)"]
+  IngestAPI --> Response["Upload Response<br/>(documentId, stats)"]
 ```
 
 ### Key ideas:
