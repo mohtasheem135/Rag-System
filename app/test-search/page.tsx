@@ -1,51 +1,45 @@
+// app/test-search/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Search, Database, FileText, Hash, Loader2 } from 'lucide-react';
+import { useCollections } from '@/hooks/useCollections';
 
-interface Collection {
+// ✅ Typed search result interface — no more any[]
+interface SearchResult {
+  score: number;
+  content: string;
+  metadata: {
+    chunk_index: number;
+    total_chunks: number;
+    original_filename: string;
+    document_id: string;
+    page_number?: number;
+  };
+}
+
+// ✅ Typed stats interface — no more any
+interface CollectionStats {
   name: string;
   count: number;
 }
 
 export default function TestSearchPage() {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<CollectionStats | null>(null);
 
-  // Collection state
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollection, setSelectedCollection] = useState<string>('');
-  const [loadingCollections, setLoadingCollections] = useState(true);
-
-  // Fetch collections on mount
-  useEffect(() => {
-    fetchCollections();
-  }, []);
-
-  const fetchCollections = async () => {
-    setLoadingCollections(true);
-    try {
-      const response = await fetch('/api/vectorstore/collections');
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        setCollections(result.data);
-        if (result.data.length > 0 && !selectedCollection) {
-          setSelectedCollection(result.data[0].name);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch collections:', error);
-    } finally {
-      setLoadingCollections(false);
-    }
-  };
+  // ✅ REPLACED: 3 useState + 1 useEffect + fetchCollections → single hook call
+  const {
+    collections,
+    selectedCollection,
+    setSelectedCollection,
+    loading: loadingCollections,
+  } = useCollections();
 
   const handleSearch = async () => {
     if (!query.trim() || !selectedCollection) return;
-
     setLoading(true);
     try {
       const response = await fetch('/api/vectorstore/search', {
@@ -57,7 +51,6 @@ export default function TestSearchPage() {
           collectionName: selectedCollection,
         }),
       });
-
       const data = await response.json();
       if (data.success) {
         setResults(data.data.results);
@@ -71,7 +64,6 @@ export default function TestSearchPage() {
 
   const loadStats = async () => {
     if (!selectedCollection) return;
-
     try {
       const response = await fetch(
         `/api/vectorstore/stats?collectionName=${selectedCollection}`
@@ -85,11 +77,13 @@ export default function TestSearchPage() {
     }
   };
 
-  // Auto-load stats when collection changes
+  // Auto-load stats + reset results when collection changes
   useEffect(() => {
     if (selectedCollection) {
       loadStats();
+      setResults([]); // ✅ clear stale results on collection switch
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCollection]);
 
   return (
@@ -114,12 +108,14 @@ export default function TestSearchPage() {
           </label>
           <select
             value={selectedCollection}
-            onChange={e => setSelectedCollection(e.target.value)}
+            onChange={e => setSelectedCollection(e.target.value)} // ✅ hook setter
             className="w-full px-4 py-3 bg-black/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            disabled={loadingCollections}
+            disabled={loadingCollections} // ✅ from hook
           >
             {collections.length === 0 && (
-              <option value="">No collections available</option>
+              <option value="">
+                {loadingCollections ? 'Loading...' : 'No collections available'}
+              </option>
             )}
             {collections.map(col => (
               <option key={col.name} value={col.name}>
@@ -169,7 +165,7 @@ export default function TestSearchPage() {
             <button
               onClick={handleSearch}
               disabled={loading || !selectedCollection || !query.trim()}
-              className="px-8 py-4 gradient-indigo-purple-fuchsia text-white rounded-xl hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-all duration-300"
+              className="px-8 py-4 gradient-indigo-purple-fuchsia text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-all duration-300"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

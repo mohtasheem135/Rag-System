@@ -3,7 +3,7 @@
 import { z } from 'zod';
 
 // Configuration
-const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760'); // 10MB default
+const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '20971520'); // 20MB default
 
 // Allowed file types with their extensions
 export const ALLOWED_FILE_TYPES = {

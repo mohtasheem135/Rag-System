@@ -271,7 +271,7 @@ export default function FileUploader() {
               Drop your file here or click to browse
             </p>
             <p className="text-sm text-gray-500">
-              Supports PDF, DOCX, TXT, CSV (max 10MB)
+              Supports PDF, DOCX, TXT, CSV (max 20MB)
             </p>
           </label>
         ) : (

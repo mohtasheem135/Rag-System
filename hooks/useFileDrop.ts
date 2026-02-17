@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.csv'];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
 interface UseFileDropOptions {
   onFileSelect: (file: File) => void;
@@ -22,7 +22,7 @@ export function useFileDrop({ onFileSelect, onError }: UseFileDropOptions) {
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      onError('File size exceeds 10MB limit');
+      onError('File size exceeds 20MB limit');
       return false;
     }
 

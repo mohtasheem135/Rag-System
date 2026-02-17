@@ -1,3 +1,4 @@
+// app/chat-test/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,20 +9,32 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
-  FileText,
   BookOpen,
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
+import { useCollections } from '@/hooks/useCollections';
+import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer'; // ✅ added
 
-interface Collection {
-  name: string;
-  count: number;
+// ✅ Properly typed message interface
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  sources?: {
+    content: string;
+    metadata: {
+      original_filename?: string;
+      filename?: string;
+      page_number?: number;
+      chunk_index?: number;
+    };
+  }[];
 }
 
 export default function ChatTestPage() {
   const [sessionId, setSessionId] = useState<string>('');
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [expandedSources, setExpandedSources] = useState<{
@@ -29,10 +42,13 @@ export default function ChatTestPage() {
   }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Collection management state
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollection, setSelectedCollection] = useState<string>('');
-  const [loadingCollections, setLoadingCollections] = useState(true);
+  const {
+    collections,
+    selectedCollection,
+    setSelectedCollection,
+    loading: loadingCollections,
+    refetch: fetchCollections,
+  } = useCollections();
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -43,47 +59,22 @@ export default function ChatTestPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Fetch collections on mount
-  useEffect(() => {
-    fetchCollections();
-  }, []);
-
   // Create session when collection is selected
   useEffect(() => {
     if (selectedCollection) {
       createSession();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCollection]);
-
-  const fetchCollections = async () => {
-    setLoadingCollections(true);
-    try {
-      const response = await fetch('/api/vectorstore/collections');
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        setCollections(result.data);
-        if (result.data.length > 0 && !selectedCollection) {
-          setSelectedCollection(result.data[0].name);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch collections:', error);
-    } finally {
-      setLoadingCollections(false);
-    }
-  };
 
   const createSession = async () => {
     if (!selectedCollection) return;
-
     try {
       const response = await fetch('/api/chat/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ collectionName: selectedCollection }),
       });
-
       const data = await response.json();
       if (data.success) {
         setSessionId(data.data.sessionId);
@@ -96,7 +87,6 @@ export default function ChatTestPage() {
 
   const handleCollectionChange = (newCollection: string) => {
     setSelectedCollection(newCollection);
-    // Reset session and messages when collection changes
     setSessionId('');
     setMessages([]);
   };
@@ -122,46 +112,12 @@ export default function ChatTestPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Simple Markdown renderer (handles **bold**, *italic*, lists, etc.)
-  const renderMarkdown = (text: string) => {
-    return (
-      text
-        // Bold **text**
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        // Italic *text*
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        // Headers
-        .replace(
-          /^### (.*$)/gm,
-          '<h4 class="font-bold text-lg mt-2 mb-1">$1</h4>'
-        )
-        .replace(
-          /^## (.*$)/gm,
-          '<h3 class="font-bold text-xl mt-3 mb-2">$1</h3>'
-        )
-        .replace(
-          /^# (.*$)/gm,
-          '<h2 class="font-bold text-2xl mt-4 mb-3">$1</h2>'
-        )
-        // Bullet points
-        .replace(
-          /^\s*[-]\s+(.*$)/gm,
-          '<div class="flex items-start gap-2 mt-1"><span class="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></span><span>$1</span></div>'
-        )
-        // Line breaks
-        .replace(/\n/g, '<br>')
-        // Numbered lists
-        .replace(
-          /^\s*\d+\.\s+(.*$)/gm,
-          '<div class="flex items-start gap-2 mt-1"><span class="w-5 text-sm font-mono text-gray-500 flex-shrink-0">$&nbsp;</span><span>$1</span></div>'
-        )
-    );
-  };
+  // ✅ renderMarkdown function REMOVED — replaced by <MarkdownRenderer />
 
   const sendMessage = async () => {
     if (!input.trim() || !sessionId || !selectedCollection) return;
 
-    const userMessage = {
+    const userMessage: Message = {
       role: 'user',
       content: input.trim(),
       timestamp: new Date().toLocaleTimeString([], {
@@ -169,6 +125,7 @@ export default function ChatTestPage() {
         minute: '2-digit',
       }),
     };
+
     setMessages(prev => [...prev, userMessage]);
     const question = input.trim();
     setInput('');
@@ -187,8 +144,9 @@ export default function ChatTestPage() {
       });
 
       const data = await response.json();
+
       if (data.success) {
-        const assistantMessage = {
+        const assistantMessage: Message = {
           role: 'assistant',
           content: data.data.answer,
           sources: data.data.sources || [],
@@ -199,7 +157,7 @@ export default function ChatTestPage() {
         };
         setMessages(prev => [...prev, assistantMessage]);
       } else {
-        const errorMessage = {
+        const errorMessage: Message = {
           role: 'assistant',
           content: `Error: ${data.error}`,
           timestamp: new Date().toLocaleTimeString([], {
@@ -209,8 +167,8 @@ export default function ChatTestPage() {
         };
         setMessages(prev => [...prev, errorMessage]);
       }
-    } catch (error) {
-      const errorMessage = {
+    } catch {
+      const errorMessage: Message = {
         role: 'assistant',
         content: 'Failed to get response. Please try again.',
         timestamp: new Date().toLocaleTimeString([], {
@@ -329,12 +287,10 @@ export default function ChatTestPage() {
                         : 'bg-gray-800/50 border border-gray-700'
                     }`}
                   >
-                    {/* Message content with Markdown */}
-                    <div
-                      className="prose prose-sm max-w-none leading-relaxed text-gray-200"
-                      dangerouslySetInnerHTML={{
-                        __html: renderMarkdown(msg.content),
-                      }}
+                    {/* ✅ REPLACED dangerouslySetInnerHTML + renderMarkdown */}
+                    <MarkdownRenderer
+                      content={msg.content}
+                      className="prose prose-sm max-w-none leading-relaxed"
                     />
 
                     {/* Timestamp */}
@@ -378,7 +334,7 @@ export default function ChatTestPage() {
                           }`}
                         >
                           <div className="grid md:grid-cols-2 gap-3 mt-3">
-                            {msg.sources.map((source: any, i: number) => (
+                            {msg.sources.map((source, i) => (
                               <div
                                 key={i}
                                 className="bg-gray-900/50 p-4 rounded-xl border border-gray-700 hover:border-purple-500/50 transition-all"
@@ -393,9 +349,9 @@ export default function ChatTestPage() {
                                     </div>
                                     <div className="text-xs text-gray-500 mb-2">
                                       Page{' '}
-                                      {source.metadata.page_number || 'N/A'} •
+                                      {source.metadata.page_number ?? 'N/A'} •
                                       Chunk{' '}
-                                      {source.metadata.chunk_index || i + 1}
+                                      {source.metadata.chunk_index ?? i + 1}
                                     </div>
                                     <div className="text-xs leading-relaxed text-gray-400 line-clamp-3">
                                       {source.content}
@@ -438,6 +394,9 @@ export default function ChatTestPage() {
                   </div>
                 </div>
               ))}
+
+              {/* Scroll anchor */}
+              <div ref={messagesEndRef} />
             </div>
           </div>
 
@@ -481,7 +440,6 @@ export default function ChatTestPage() {
           </div>
         </div>
       </div>
-      <div ref={messagesEndRef} />
     </div>
   );
 }

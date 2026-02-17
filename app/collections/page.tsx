@@ -1,61 +1,34 @@
 // app/collections/page.tsx
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Trash2, Plus, Database, Loader2, FolderOpen } from 'lucide-react';
 import type { ApiResponse } from '@/types/api';
-
-interface Collection {
-  name: string;
-  count: number;
-}
+import { useCollections } from '@/hooks/useCollections';
 
 export default function CollectionsPage() {
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [loading, setLoading] = useState(true);
+  // ✅ REPLACED: 2 useState + 1 useEffect + fetchCollections → single hook call
+  const {
+    collections,
+    loading,
+    refetch: fetchCollections,
+  } = useCollections();
+
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
-
   const [message, setMessage] = useState<{
     type: 'success' | 'error' | null;
     text: string;
   }>({ type: null, text: '' });
 
-  // Fetch collections on mount
-  useEffect(() => {
-    fetchCollections();
-  }, []);
-
-  const fetchCollections = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/vectorstore/collections');
-      const result: ApiResponse<Collection[]> = await response.json();
-
-      if (result.success && result.data) {
-        setCollections(result.data);
-      } else {
-        showMessage('error', result.error || 'Failed to load collections');
-      }
-    } catch (error) {
-      showMessage('error', 'Error loading collections');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleCreateCollection = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!newCollectionName.trim()) {
-      showMessage('error', 'Collection name is required');
+      showMsg('error', 'Collection name is required');
       return;
     }
-
     setCreating(true);
     try {
       const response = await fetch('/api/vectorstore/collections', {
@@ -63,19 +36,17 @@ export default function CollectionsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newCollectionName.trim() }),
       });
-
       const result: ApiResponse = await response.json();
-
       if (result.success) {
-        showMessage('success', `Collection "${newCollectionName}" created!`);
+        showMsg('success', `Collection "${newCollectionName}" created!`);
         setNewCollectionName('');
         setShowCreateForm(false);
-        await fetchCollections();
+        await fetchCollections(); // ✅ hook's refetch
       } else {
-        showMessage('error', result.error || 'Failed to create collection');
+        showMsg('error', result.error ?? 'Failed to create collection');
       }
-    } catch (error) {
-      showMessage('error', 'Error creating collection');
+    } catch {
+      showMsg('error', 'Error creating collection');
     } finally {
       setCreating(false);
     }
@@ -89,32 +60,27 @@ export default function CollectionsPage() {
     ) {
       return;
     }
-
     setDeleting(name);
     try {
       const response = await fetch(
         `/api/vectorstore/collections/${encodeURIComponent(name)}`,
-        {
-          method: 'DELETE',
-        }
+        { method: 'DELETE' }
       );
-
       const result: ApiResponse = await response.json();
-
       if (result.success) {
-        showMessage('success', `Collection "${name}" deleted`);
-        await fetchCollections();
+        showMsg('success', `Collection "${name}" deleted`);
+        await fetchCollections(); // ✅ hook's refetch
       } else {
-        showMessage('error', result.error || 'Failed to delete collection');
+        showMsg('error', result.error ?? 'Failed to delete collection');
       }
-    } catch (error) {
-      showMessage('error', 'Error deleting collection');
+    } catch {
+      showMsg('error', 'Error deleting collection');
     } finally {
       setDeleting(null);
     }
   };
 
-  const showMessage = (type: 'success' | 'error', text: string) => {
+  const showMsg = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage({ type: null, text: '' }), 5000);
   };
