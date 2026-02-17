@@ -5,7 +5,7 @@ import type { ApiResponse } from '@/types/api';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { query, k = 4, documentId } = body;
+    const { query, k = 4, collectionName } = body;
 
     if (!query) {
       return NextResponse.json<ApiResponse>(
@@ -14,7 +14,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const collectionName = documentId ? `doc_${documentId}` : undefined;
+    if (!collectionName) {
+      return NextResponse.json<ApiResponse>(
+        { success: false, error: 'Collection name is required' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`🔍 Searching in collection: ${collectionName}`);
+    console.log(`   Query: "${query}"`);
+    console.log(`   K: ${k}`);
 
     // Perform similarity search with scores
     const results = await vectorStoreService.similaritySearchWithScore(
@@ -22,6 +31,8 @@ export async function POST(request: NextRequest) {
       k,
       collectionName
     );
+
+    console.log(`✅ Found ${results.length} results`);
 
     // Format results
     const formattedResults = results.map(([doc, score]) => ({
@@ -36,8 +47,9 @@ export async function POST(request: NextRequest) {
         query,
         results: formattedResults,
         count: formattedResults.length,
+        collection: collectionName,
       },
-      message: `Found ${formattedResults.length} similar documents`,
+      message: `Found ${formattedResults.length} similar documents in "${collectionName}"`,
     });
   } catch (error) {
     console.error('Search error:', error);

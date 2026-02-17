@@ -37,6 +37,12 @@ export function Navbar() {
               Search
             </Link>
             <Link
+              href="/collections"
+              className="text-gray-400 hover:text-white transition-colors duration-300 text-sm font-medium"
+            >
+              Collection
+            </Link>
+            <Link
               href="/chat-test"
               className="px-4 py-2 gradient-indigo-purple-fuchsia rounded-lg text-white text-sm font-semibold hover:from-purple-600 hover:to-blue-600 transition-all duration-300 shadow-lg shadow-purple-500/25"
             >

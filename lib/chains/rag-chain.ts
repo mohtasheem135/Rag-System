@@ -18,7 +18,7 @@ export class RAGChainService {
       console.log(`   Collection: ${collectionName || 'default'}`);
       console.log(`   Retrieving top ${k} documents...`);
 
-      // Step 1: Retrieve relevant documents
+      // Step 1: Retrieve relevant documents from specified collection
       const retrievedDocs = await vectorStoreService.similaritySearchWithScore(
         question,
         k,
@@ -77,6 +77,7 @@ export class RAGChainService {
     try {
       console.log(`\n🔍 RAG Query with History`);
       console.log(`   Session: ${sessionId}`);
+      console.log(`   Collection: ${collectionName || 'default'}`);
       console.log(`   Question: "${question}"`);
 
       // Step 1: Add user message to history
@@ -92,14 +93,16 @@ export class RAGChainService {
         `📜 Chat history: ${chatHistory.split('\n').length} messages`
       );
 
-      // Step 3: Retrieve relevant documents
+      // Step 3: Retrieve relevant documents from specified collection
       const retrievedDocs = await vectorStoreService.similaritySearchWithScore(
         question,
         k,
-        collectionName
+        collectionName // Pass collection name to vector store
       );
 
-      console.log(`✅ Retrieved ${retrievedDocs.length} documents`);
+      console.log(
+        `✅ Retrieved ${retrievedDocs.length} documents from collection: ${collectionName || 'default'}`
+      );
 
       // Step 4: Format context
       const context = retrievedDocs
@@ -162,15 +165,24 @@ export class RAGChainService {
     k: number = 4
   ): AsyncGenerator<{ type: 'sources' | 'token' | 'complete'; data: any }> {
     try {
+      console.log(`\n🔍 Streaming RAG Query`);
+      console.log(`   Session: ${sessionId}`);
+      console.log(`   Collection: ${collectionName || 'default'}`);
+      console.log(`   Question: "${question}"`);
+
       // Step 1: Add user message
       chatHistoryManager.addMessage(sessionId, 'user', question);
 
-      // Step 2: Get history and retrieve documents
+      // Step 2: Get history and retrieve documents from specified collection
       const chatHistory = chatHistoryManager.getFormattedHistory(sessionId, 10);
       const retrievedDocs = await vectorStoreService.similaritySearchWithScore(
         question,
         k,
-        collectionName
+        collectionName // Pass collection name to vector store
+      );
+
+      console.log(
+        `✅ Retrieved ${retrievedDocs.length} documents for streaming`
       );
 
       // Yield sources first
@@ -185,7 +197,14 @@ export class RAGChainService {
 
       // Step 3: Format context and create prompt
       const context = retrievedDocs
-        .map(([doc, score], idx) => `[Source ${idx + 1}]\n${doc.pageContent}`)
+        .map(([doc, score], idx) => {
+          const source =
+            doc.metadata.original_filename || doc.metadata.source || 'unknown';
+          const page = doc.metadata.page_number
+            ? ` (Page ${doc.metadata.page_number})`
+            : '';
+          return `[Source ${idx + 1}: ${source}${page}]\n${doc.pageContent}`;
+        })
         .join('\n\n---\n\n');
 
       const prompt = await ragPromptTemplate.format({
@@ -204,6 +223,8 @@ export class RAGChainService {
         fullAnswer += token;
         yield { type: 'token', data: token };
       }
+
+      console.log(`✅ Streaming complete (${fullAnswer.length} characters)`);
 
       // Step 5: Add assistant message to history
       const sources = retrievedDocs.map(([doc, score]) => ({
@@ -224,6 +245,22 @@ export class RAGChainService {
     } catch (error) {
       console.error('❌ Error in streaming RAG chain:', error);
       throw error;
+    }
+  }
+
+  // Helper method to validate collection exists
+  async validateCollection(collectionName?: string): Promise<boolean> {
+    try {
+      if (!collectionName) {
+        return true; // Default collection is always valid
+      }
+
+      // You can add actual validation logic here if needed
+      // For now, we'll trust the vector store to handle it
+      return true;
+    } catch (error) {
+      console.error('❌ Error validating collection:', error);
+      return false;
     }
   }
 }

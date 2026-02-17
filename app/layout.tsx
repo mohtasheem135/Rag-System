@@ -25,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={tektur.className}>
+      <body className={`${tektur.className} bg-black`}>
         <Navbar />
         <main className="pt-16">{children}</main>
         <Footer />

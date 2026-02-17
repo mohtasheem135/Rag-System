@@ -88,8 +88,8 @@ flowchart LR
 
 ```
 
-
 ## 📄 Document Processing Flow
+
 From upload to vector store:
 
 ```mermaid
@@ -123,9 +123,10 @@ flowchart TD
 ---
 
 ## 💬 Conversational RAG Flow
+
 How a question becomes an answer:
 
-``` mermaid
+```mermaid
 sequenceDiagram
   participant U as User
   participant FE as Chat UI (/chat-test)
@@ -158,11 +159,13 @@ sequenceDiagram
   Q-->>FE: ChatResponse
   FE-->>U: Render answer + citations
 ```
+
 The prompt instructs the LLM to answer only from the provided context and to explicitly say when the documents do not contain the requested information.
 
 ---
 
 ## 📁 Project Structure
+
 ```
 ├── README.md
 ├── components.json
@@ -232,15 +235,18 @@ The prompt instructs the LLM to answer only from the provided context and to exp
 ---
 
 ### 🚀 Getting Started
+
 #### 1) Prerequisites
+
 - Node.js 18+ (20+ recommended)
 - npm / pnpm / yarn
 - Docker (for ChromaDB)
 - A Google Gemini API key with access to:
-    - An embeddings model (e.g. embedding-001)
-    - A chat model (e.g. Gemini 1.5 / 3 Flash)
+  - An embeddings model (e.g. embedding-001)
+  - A chat model (e.g. Gemini 1.5 / 3 Flash)
 
 #### 2. Install dependencies
+
 ```
 git clone https://github.com/mohtasheem135/Rag-System.git
 cd Rag-System
@@ -254,7 +260,9 @@ pnpm install
 ```
 
 #### 3. Configure environment
+
 Create a .env.local in the project root and add:
+
 ```
 # Required
 GOOGLE_API_KEY=your_gemini_api_key_here
@@ -266,10 +274,13 @@ CHROMA_URL=http://localhost:8000
 Then, ensure the LLM and embeddings code in lib/llm/gemini.ts and lib/vectorstore/embeddings.ts read from these environment variables, and that lib/vectorstore/chromadb.ts points at CHROMA_URL.
 
 #### 4. Start ChromaDB
+
 Run ChromaDB in Docker (basic example):
+
 ```
 docker run -p 8000:8000 chromadb/chroma:latest
 ```
+
 This will expose Chroma on http://localhost:8000.
 
 #### 5. Run the Next.js dev server
@@ -294,54 +305,58 @@ Then open:
 ## 🧪 How to Use
 
 #### A. Upload documents
+
 1. Go to /upload.
 2. Drag and drop a PDF/DOCX/TXT file, or click to browse.
 3. Submit the upload.
 4. The backend:
-    * Loader (PDF/DOCX/TXT)
-    * Recursive text splitter (1200–1500 tokens, ~20% overlap)
-    * Metadata enrichment
-    * Gemini embeddings
-    * Store vectors in ChromaDB
+   - Loader (PDF/DOCX/TXT)
+   - Recursive text splitter (1200–1500 tokens, ~20% overlap)
+   - Metadata enrichment
+   - Gemini embeddings
+   - Store vectors in ChromaDB
 5. The response includes:
-    * documentId
-    * Number of chunks created
-    * Number of vectors stored
-    * Processing stats (time, average chunk size, etc.)
+   - documentId
+   - Number of chunks created
+   - Number of vectors stored
+   - Processing stats (time, average chunk size, etc.)
 
 #### B. Chat with your documents
+
 1. Go to /chat-test.
 2. The client first creates a session via /api/chat/session.
 3. Ask a question about your uploaded documents.
 4. Each question is sent to /api/chat/query with:
-    * sessionId
-    * question
-    * optional collectionName
-    * optional k (top-k chunks)
+   - sessionId
+   - question
+   - optional collectionName
+   - optional k (top-k chunks)
 5. The backend:
-    * Appends the question to chat history.
-    * Retrieves the most relevant chunks from Chroma.
-    * Builds a prompt with:
-      * Context (chunks + metadata)
-      * Chat history
-      * Current question
-    * Calls Gemini LLM to generate an answer.
-    * Returns the answer plus normalized source metadata.
+   - Appends the question to chat history.
+   - Retrieves the most relevant chunks from Chroma.
+   - Builds a prompt with:
+     - Context (chunks + metadata)
+     - Chat history
+     - Current question
+   - Calls Gemini LLM to generate an answer.
+   - Returns the answer plus normalized source metadata.
 6. The UI renders the answer with citations and source info.
 
 #### C. Test vector similarity search
-* Use /test-search (if wired) to:
-  * Enter an arbitrary query.
-  * Hit the search endpoint (/api/vectorstore/search).
-  * Inspect which chunks are retrieved and their similarity scores.
+
+- Use /test-search (if wired) to:
+  - Enter an arbitrary query.
+  - Hit the search endpoint (/api/vectorstore/search).
+  - Inspect which chunks are retrieved and their similarity scores.
 
 #### D. Debug & inspect chunks
-* Use /api/debug/chunks with query params like:
-  * filename
-  * fileType
-* This endpoint runs the processing pipeline for that file and returns:
-  * High-level stats
-  * A small sample of chunks (truncated), for inspection and debugging.
+
+- Use /api/debug/chunks with query params like:
+  - filename
+  - fileType
+- This endpoint runs the processing pipeline for that file and returns:
+  - High-level stats
+  - A small sample of chunks (truncated), for inspection and debugging.
 
 ---
 
@@ -351,17 +366,19 @@ Then open:
   Adjust in the text splitter configuration (e.g. lib/splitters/text-splitter.ts) to trade off between recall, latency, and token usage.
 - **Embeddings model**  
   Swap out Gemini embeddings or tune batch size / rate limiting in lib/vectorstore/embeddings.ts.
-- **LLM model & temperature**   
+- **LLM model & temperature**  
   Modify the Gemini model, temperature, and other generation parameters in lib/llm/gemini.ts.
-- **Prompting**   
+- **Prompting**  
   Tweak system and user prompts in lib/chains/prompts.ts to modify answer style, strictness about context, etc.
-- **Collections & multi-tenancy**   
+- **Collections & multi-tenancy**  
   Use different Chroma collections per user, per dataset, or per environment by threading collectionName through the APIs.
 
 ---
 
 ## 🧭 Roadmap Ideas
+
 Potential extensions you can build on top of this:
+
 - Streaming responses in the chat UI using a streaming endpoint for Gemini.
 - User authentication and per-user collections / ACLs.
 - Hybrid search (semantic + keyword / filters) and reranking for more accurate retrieval.
@@ -369,4 +386,3 @@ Potential extensions you can build on top of this:
 - Cloud deployment:
   - Frontend + API on Vercel
   - ChromaDB on a managed service or self-hosted VM
-

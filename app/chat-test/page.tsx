@@ -11,7 +11,13 @@ import {
   FileText,
   BookOpen,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
+
+interface Collection {
+  name: string;
+  count: number;
+}
 
 export default function ChatTestPage() {
   const [sessionId, setSessionId] = useState<string>('');
@@ -23,6 +29,11 @@ export default function ChatTestPage() {
   }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Collection management state
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollection, setSelectedCollection] = useState<string>('');
+  const [loadingCollections, setLoadingCollections] = useState(true);
+
   // Auto-scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,17 +43,45 @@ export default function ChatTestPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Create session on mount
+  // Fetch collections on mount
   useEffect(() => {
-    createSession();
+    fetchCollections();
   }, []);
 
+  // Create session when collection is selected
+  useEffect(() => {
+    if (selectedCollection) {
+      createSession();
+    }
+  }, [selectedCollection]);
+
+  const fetchCollections = async () => {
+    setLoadingCollections(true);
+    try {
+      const response = await fetch('/api/vectorstore/collections');
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setCollections(result.data);
+        if (result.data.length > 0 && !selectedCollection) {
+          setSelectedCollection(result.data[0].name);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch collections:', error);
+    } finally {
+      setLoadingCollections(false);
+    }
+  };
+
   const createSession = async () => {
+    if (!selectedCollection) return;
+
     try {
       const response = await fetch('/api/chat/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ collectionName: selectedCollection }),
       });
 
       const data = await response.json();
@@ -53,6 +92,13 @@ export default function ChatTestPage() {
     } catch (error) {
       console.error('Failed to create session:', error);
     }
+  };
+
+  const handleCollectionChange = (newCollection: string) => {
+    setSelectedCollection(newCollection);
+    // Reset session and messages when collection changes
+    setSessionId('');
+    setMessages([]);
   };
 
   const toggleSources = (messageIndex: number) => {
@@ -113,7 +159,7 @@ export default function ChatTestPage() {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || !sessionId) return;
+    if (!input.trim() || !sessionId || !selectedCollection) return;
 
     const userMessage = {
       role: 'user',
@@ -135,6 +181,7 @@ export default function ChatTestPage() {
         body: JSON.stringify({
           sessionId,
           question,
+          collectionName: selectedCollection,
           k: 4,
         }),
       });
@@ -181,7 +228,7 @@ export default function ChatTestPage() {
     <div className="min-h-screen bg-black text-white">
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center gap-4 bg-gray-900/50 backdrop-blur-lg px-8 py-4 rounded-2xl border border-gray-800">
             <div className="w-12 h-12 gradient-indigo-purple-fuchsia rounded-xl flex items-center justify-center">
               <BookOpen className="w-6 h-6 text-white" />
@@ -202,8 +249,53 @@ export default function ChatTestPage() {
           </div>
         </div>
 
+        {/* Collection Selector */}
+        <div className="mb-6 bg-gray-900/30 border border-gray-800 rounded-xl p-4 backdrop-blur-sm">
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Collection
+          </label>
+          <div className="flex gap-2">
+            <select
+              value={selectedCollection}
+              onChange={e => handleCollectionChange(e.target.value)}
+              className="flex-1 px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loadingCollections || loading}
+            >
+              {collections.length === 0 && (
+                <option value="">
+                  {loadingCollections
+                    ? 'Loading...'
+                    : 'No collections available'}
+                </option>
+              )}
+              {collections.map(col => (
+                <option key={col.name} value={col.name}>
+                  {col.name} ({col.count} {col.count === 1 ? 'doc' : 'docs'})
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={fetchCollections}
+              className="px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loadingCollections}
+              title="Refresh collections"
+            >
+              <RefreshCw
+                className={`w-5 h-5 ${loadingCollections ? 'animate-spin' : ''}`}
+              />
+            </button>
+          </div>
+          {selectedCollection && (
+            <p className="text-xs text-gray-500 mt-2">
+              Chatting with:{' '}
+              <span className="text-purple-400">{selectedCollection}</span>
+            </p>
+          )}
+        </div>
+
         {/* Chat Container */}
-        <div className="bg-gray-900/30 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-sm h-[75vh] max-h-[800px] flex flex-col">
+        <div className="bg-gray-900/30 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-sm h-[65vh] max-h-[700px] flex flex-col">
           {/* Messages Area */}
           <div className="flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -217,7 +309,9 @@ export default function ChatTestPage() {
                     Start Chatting
                   </h2>
                   <p className="text-gray-400">
-                    Ask questions about your uploaded documents
+                    {selectedCollection
+                      ? `Ask questions about documents in "${selectedCollection}"`
+                      : 'Select a collection to start chatting'}
                   </p>
                 </div>
               )}
@@ -299,7 +393,7 @@ export default function ChatTestPage() {
                                     </div>
                                     <div className="text-xs text-gray-500 mb-2">
                                       Page{' '}
-                                      {source.metadata.page_number || 'N/A'}{' '}
+                                      {source.metadata.page_number || 'N/A'} •
                                       Chunk{' '}
                                       {source.metadata.chunk_index || i + 1}
                                     </div>
@@ -361,15 +455,21 @@ export default function ChatTestPage() {
                       sendMessage();
                     }
                   }}
-                  placeholder="Ask anything about your uploaded documents..."
-                  disabled={loading || !sessionId}
+                  placeholder={
+                    selectedCollection
+                      ? 'Ask anything about your uploaded documents...'
+                      : 'Select a collection to start chatting...'
+                  }
+                  disabled={loading || !sessionId || !selectedCollection}
                   className="w-full px-5 py-4 bg-black/50 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-white placeholder-gray-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
               <button
                 onClick={sendMessage}
-                disabled={loading || !input.trim() || !sessionId}
-                className="px-6 py-4 gradient-indigo-purple-fuchsia text-white rounded-xl transition-all duration-300 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center"
+                disabled={
+                  loading || !input.trim() || !sessionId || !selectedCollection
+                }
+                className="px-6 py-4 gradient-indigo-purple-fuchsia text-white rounded-xl transition-all duration-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />

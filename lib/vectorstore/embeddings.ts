@@ -1,3 +1,5 @@
+// lib/vectorstore/embeddings.ts
+
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { TaskType } from '@google/generative-ai';
 
@@ -14,7 +16,7 @@ export class EmbeddingService {
 
     this.embeddings = new GoogleGenerativeAIEmbeddings({
       apiKey,
-      modelName: this.modelName,
+      model: this.modelName,
       taskType: TaskType.RETRIEVAL_DOCUMENT,
     });
 
@@ -29,6 +31,12 @@ export class EmbeddingService {
   async embedQuery(text: string): Promise<number[]> {
     try {
       console.log(`🔄 Generating query embedding (${text.length} chars)...`);
+
+      // Validate text
+      if (!text || text.trim().length === 0) {
+        throw new Error('Query text cannot be empty');
+      }
+
       const embedding = await this.embeddings.embedQuery(text);
       console.log(`✅ Generated embedding with ${embedding.length} dimensions`);
       return embedding;
@@ -45,10 +53,35 @@ export class EmbeddingService {
     try {
       console.log(`🔄 Generating embeddings for ${texts.length} documents...`);
 
+      // Validate texts
+      if (!texts || texts.length === 0) {
+        throw new Error('No texts provided for embedding');
+      }
+
       // Debug: Check first text
       if (texts.length > 0) {
-        console.log(`   First text length: ${texts[0].length} chars`);
-        console.log(`   First text preview: ${texts[0].substring(0, 100)}...`);
+        const firstText = texts[0];
+        console.log(`   First text length: ${firstText.length} chars`);
+        console.log(
+          `   First text preview: ${firstText.substring(0, 100).replace(/\n/g, ' ')}...`
+        );
+
+        // Validate minimum length
+        if (firstText.trim().length < 10) {
+          throw new Error(
+            `Text is too short (${firstText.length} chars). Minimum 10 characters required.`
+          );
+        }
+      }
+
+      // Validate all texts before sending
+      for (let i = 0; i < texts.length; i++) {
+        const text = texts[i];
+        if (!text || text.trim().length < 10) {
+          throw new Error(
+            `Text at index ${i} is too short (${text?.length || 0} chars). Minimum 10 characters required.`
+          );
+        }
       }
 
       const embeddings = await this.embeddings.embedDocuments(texts);
@@ -56,6 +89,12 @@ export class EmbeddingService {
       // Validate embeddings
       if (!embeddings || embeddings.length === 0) {
         throw new Error('No embeddings returned from API');
+      }
+
+      if (embeddings.length !== texts.length) {
+        throw new Error(
+          `Embedding count mismatch: expected ${texts.length}, got ${embeddings.length}`
+        );
       }
 
       if (embeddings[0].length === 0) {
@@ -75,42 +114,127 @@ export class EmbeddingService {
     }
   }
 
-  // Batch process large document sets to avoid rate limits
+  // Batch process large document sets with fault tolerance
   async embedDocumentsBatch(
     texts: string[],
-    batchSize: number = 10 // Reduced from 20 to avoid rate limits
+    batchSize: number = 10
   ): Promise<number[][]> {
-    const batches: string[][] = [];
-
-    // Split into batches
-    for (let i = 0; i < texts.length; i += batchSize) {
-      batches.push(texts.slice(i, i + batchSize));
+    if (!texts || texts.length === 0) {
+      throw new Error('No texts provided for batch embedding');
     }
 
+    const allEmbeddings: (number[] | null)[] = new Array(texts.length).fill(
+      null
+    );
+    const failedIndices: number[] = [];
+    const totalBatches = Math.ceil(texts.length / batchSize);
+
     console.log(
-      `📦 Processing ${texts.length} documents in ${batches.length} batches`
+      `📦 Processing ${texts.length} documents in ${totalBatches} batches (${batchSize} per batch)`
     );
 
-    const allEmbeddings: number[][] = [];
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const batch = texts.slice(i, Math.min(i + batchSize, texts.length));
+      const batchNum = Math.floor(i / batchSize) + 1;
 
-    for (let i = 0; i < batches.length; i++) {
-      console.log(`   Batch ${i + 1}/${batches.length}...`);
+      console.log(`   Batch ${batchNum}/${totalBatches}...`);
 
       try {
-        const batchEmbeddings = await this.embedDocuments(batches[i]);
-        allEmbeddings.push(...batchEmbeddings);
+        const batchEmbeddings = await this.embedDocuments(batch);
 
-        // Delay between batches to respect rate limits
-        if (i < batches.length - 1) {
-          await this.delay(1000); // Increased to 1 second
+        // Store successful embeddings
+        for (let j = 0; j < batchEmbeddings.length; j++) {
+          allEmbeddings[i + j] = batchEmbeddings[j];
+        }
+
+        console.log(`   ✅ Batch ${batchNum} completed`);
+
+        // Rate limiting delay between batches
+        if (i + batchSize < texts.length) {
+          console.log(`   ⏳ Waiting 1s before next batch...`);
+          await this.delay(1000);
         }
       } catch (error) {
-        console.error(`❌ Error in batch ${i + 1}:`, error);
-        throw error;
+        console.error(`❌ Error in batch ${batchNum}:`, error);
+
+        // Mark all items in this batch as failed
+        for (let j = 0; j < batch.length; j++) {
+          const globalIndex = i + j;
+          failedIndices.push(globalIndex);
+          console.warn(
+            `   ⚠️  Skipping document ${globalIndex} due to batch failure`
+          );
+        }
+
+        // Continue with next batch instead of failing completely
+        console.log(`   ⏭️  Continuing with next batch...`);
+
+        // Add delay even after error
+        if (i + batchSize < texts.length) {
+          await this.delay(1500); // Slightly longer delay after error
+        }
       }
     }
 
-    return allEmbeddings;
+    // Filter out failed embeddings
+    const successfulEmbeddings = allEmbeddings.filter(
+      (emb): emb is number[] => emb !== null
+    );
+
+    console.log(`\n📊 Embedding Summary:`);
+    console.log(`   ✅ Successful: ${successfulEmbeddings.length}`);
+    console.log(`   ❌ Failed: ${failedIndices.length}`);
+
+    if (failedIndices.length > 0) {
+      console.log(`   Failed indices: [${failedIndices.join(', ')}]`);
+    }
+
+    if (successfulEmbeddings.length === 0) {
+      throw new Error(
+        'All embeddings failed. Please check your input texts and API key.'
+      );
+    }
+
+    // Warn if significant portion failed
+    const failureRate = failedIndices.length / texts.length;
+    if (failureRate > 0.1) {
+      console.warn(
+        `⚠️  Warning: ${(failureRate * 100).toFixed(1)}% of embeddings failed`
+      );
+    }
+
+    return successfulEmbeddings;
+  }
+
+  // Enhanced batch processing that returns both embeddings and metadata about failures
+  async embedDocumentsBatchWithMetadata(
+    texts: string[],
+    batchSize: number = 10
+  ): Promise<{
+    embeddings: number[][];
+    failedIndices: number[];
+    successRate: number;
+  }> {
+    const embeddings = await this.embedDocumentsBatch(texts, batchSize);
+    const successCount = embeddings.length;
+    const failedCount = texts.length - successCount;
+    const failedIndices: number[] = [];
+
+    // Calculate which indices failed
+    let embeddingIndex = 0;
+    for (let i = 0; i < texts.length; i++) {
+      if (embeddingIndex < embeddings.length) {
+        embeddingIndex++;
+      } else {
+        failedIndices.push(i);
+      }
+    }
+
+    return {
+      embeddings,
+      failedIndices,
+      successRate: successCount / texts.length,
+    };
   }
 
   private delay(ms: number): Promise<void> {
@@ -120,6 +244,47 @@ export class EmbeddingService {
   // Get embedding dimensions (Gemini embedding-001 is 768 dimensions)
   getEmbeddingDimension(): number {
     return 768;
+  }
+
+  // Validate if a text is suitable for embedding
+  validateText(
+    text: string,
+    minLength: number = 10
+  ): {
+    valid: boolean;
+    reason?: string;
+  } {
+    if (!text) {
+      return { valid: false, reason: 'Text is null or undefined' };
+    }
+
+    const trimmedText = text.trim();
+
+    if (trimmedText.length === 0) {
+      return { valid: false, reason: 'Text is empty after trimming' };
+    }
+
+    if (trimmedText.length < minLength) {
+      return {
+        valid: false,
+        reason: `Text is too short (${trimmedText.length} chars, minimum ${minLength})`,
+      };
+    }
+
+    return { valid: true };
+  }
+
+  // Get model information
+  getModelInfo(): {
+    modelName: string;
+    dimension: number;
+    taskType: string;
+  } {
+    return {
+      modelName: this.modelName,
+      dimension: this.getEmbeddingDimension(),
+      taskType: 'RETRIEVAL_DOCUMENT',
+    };
   }
 }
 

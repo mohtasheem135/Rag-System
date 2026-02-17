@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { Suspense } from 'react';
 import { MessageCircle, Upload, Sparkles, ArrowRight } from 'lucide-react';
 import { Scene } from '../three';
+import Link from 'next/link'; // ADD THIS IMPORT
 
 interface HeroSectionProps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -13,16 +14,32 @@ export function HeroSection({ containerRef, mouse }: HeroSectionProps) {
   return (
     <section
       ref={containerRef}
-      className="relative min-h-screen flex items-center"
+      className="relative min-h-screen flex items-center bg-black"
     >
       {/* 3D Canvas - Right side */}
-      <div className="absolute inset-0 z-0 translate-x-[300px]">
+      <div className="absolute inset-0 z-0 translate-x-[300px] bg-black transition-opacity duration-300">
         <Canvas
           camera={{ position: [0, 3, 12], fov: 60 }}
-          gl={{ antialias: true, alpha: true }}
+          gl={{
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true,
+          }}
+          style={{ background: '#000000' }} // ADD THIS
           dpr={[1, 2]}
+          onCreated={({ gl, scene }) => {
+            gl.setClearColor('#000000', 0);
+            scene.background = null;
+          }}
         >
-          <Suspense fallback={null}>
+          <Suspense
+            fallback={
+              <mesh>
+                <boxGeometry args={[1, 1, 1]} />
+                <meshBasicMaterial color="#000000" transparent opacity={0} />
+              </mesh>
+            }
+          >
             <Scene mouse={mouse} />
           </Suspense>
         </Canvas>
@@ -55,21 +72,21 @@ export function HeroSection({ containerRef, mouse }: HeroSectionProps) {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4">
-            <a
+            <Link
               href="/chat-test"
               className="group inline-flex items-center justify-center gap-2 px-8 py-4 gradient-indigo-purple-fuchsia rounded-xl text-white font-semibold hover:from-purple-600 hover:to-blue-600 transition-all duration-300 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
             >
               <MessageCircle className="w-5 h-5" />
               Start Chatting
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </a>
-            <a
+            </Link>
+            <Link
               href="/upload"
               className="group inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white font-semibold hover:bg-white/20 transition-all duration-300"
             >
               <Upload className="w-5 h-5" />
               Upload Documents
-            </a>
+            </Link>
           </div>
 
           {/* Stats */}
